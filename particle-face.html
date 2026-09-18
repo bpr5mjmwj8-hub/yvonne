@@ -27,13 +27,14 @@
 const IMAGE_SRC = "Face.jpg";
 const DISPLAY_WIDTH = 500;
 const GRID = 6;
-const RADIUS = 20;          // 마우스 반응 반경 (기존 40 → 20으로 축소)
-const STRENGTH = 1.4;       // 밀려나는 가속도 세기
-const SPRING = 0.06;        // 원위치로 돌아가는 힘 (스프링)
-const FRICTION = 0.85;      // 마찰 (클수록 오래 흔들림, 1에 가까울수록 출렁임)
-const MODE = "ascii";       // "dots" 또는 "ascii"
+const RADIUS = 10;
+const STRENGTH = 1.4;
+const SPRING = 0.06;
+const FRICTION = 0.85;
+const MODE = "ascii";
 const ASCII_CHARS = " .:-=+*#%@";
 const INVERT = false;
+const JITTER = GRID * 0.4;   // 추가됨: 위치 불규칙하게 흔드는 정도
 // ===================
 
 const canvas = document.getElementById('c');
@@ -72,7 +73,12 @@ function init() {
       if (a < 50) continue;
       let brightness = (r + g + b) / 3 / 255;
       if (INVERT) brightness = 1 - brightness;
-      particles.push({ ox: x, oy: y, x: x, y: y, vx: 0, vy: 0, brightness });
+
+      // 추가됨: 위치를 살짝 랜덤하게 흔들기
+      const jx = x + (Math.random() - 0.5) * JITTER;
+      const jy = y + (Math.random() - 0.5) * JITTER;
+
+      particles.push({ ox: jx, oy: jy, x: jx, y: jy, vx: 0, vy: 0, brightness });
     }
   }
   requestAnimationFrame(loop);
@@ -86,18 +92,15 @@ function loop() {
     const dy = p.y - mouse.y;
     const dist = Math.sqrt(dx * dx + dy * dy) + 0.0001;
 
-    // 마우스 반경 안이면 부드럽게 밀어내는 힘 추가 (경계에서 뚝 끊기지 않게 제곱 감쇠)
     if (dist < RADIUS) {
       const falloff = Math.pow(1 - dist / RADIUS, 2);
       p.vx += (dx / dist) * falloff * STRENGTH;
       p.vy += (dy / dist) * falloff * STRENGTH;
     }
 
-    // 원래 자리로 당기는 스프링 힘
     p.vx += (p.ox - p.x) * SPRING;
     p.vy += (p.oy - p.y) * SPRING;
 
-    // 마찰(감속)
     p.vx *= FRICTION;
     p.vy *= FRICTION;
 
@@ -109,8 +112,10 @@ function loop() {
 
     if (MODE === "ascii") {
       const charIndex = Math.floor((1 - p.brightness) * (ASCII_CHARS.length - 1));
+      // 추가됨: 밝기에 따라 글자 크기도 살짝 다르게
+      const size = GRID + 2 + p.brightness * 2;
       ctx.fillStyle = `rgba(0,0,0,${alpha})`;
-      ctx.font = `${GRID + 2}px monospace`;
+      ctx.font = `${size}px monospace`;
       ctx.textBaseline = "middle";
       ctx.fillText(ASCII_CHARS[charIndex], p.x, p.y);
     } else {
