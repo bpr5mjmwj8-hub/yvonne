@@ -1,125 +1,345 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Particle Face Effect</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Steffi</title>
+
 <style>
   html, body {
     margin: 0;
     padding: 0;
-    background: transparent;
+    width: 100%;
+    height: 100%;
     overflow: hidden;
+    background: #fff;
+  }
+
+  body {
     display: flex;
     justify-content: center;
     align-items: center;
   }
+
   canvas {
-    max-width: 100%;
     display: block;
+    max-width: 100vw;
+    max-height: 100vh;
   }
 </style>
 </head>
+
 <body>
 
-<canvas id="c"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
-// ===== 설정값 (여기만 바꾸면 됨) =====
-const IMAGE_SRC = "Face.jpg";   // 본인 사진 파일명
-const GRID = 5;                 // 도트 간격(px). 작을수록 촘촘하고 느려짐 (4~8 권장)
-const RADIUS = 60;              // 마우스 반응 반경(px)
-const STRENGTH = 25;            // 밀려나는 힘
-const RETURN_SPEED = 0.08;      // 복귀 속도 (0~1, 클수록 빠르게 복귀)
-const MODE = "ascii";            // "dots" 또는 "ascii"
-const ASCII_CHARS = ".:-=+*#%@";
-// =====================================
 
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
-const mouse = { x: -9999, y: -9999 };
+const IMAGE_SRC = "Face.jpg";
+
+/* ===== EFFECT SETTINGS ===== */
+
+const GRID = 4;
+
+/* 커서가 영향을 주는 범위 */
+const RADIUS = 35;
+
+/* 입자가 밀려나는 정도 */
+const STRENGTH = 45;
+
+/* 원래 위치로 돌아오는 속도 */
+const RETURN_SPEED = 0.06;
+
+/* 입자 크기 */
+const PARTICLE_SIZE = 1.2;
+
+/* ============================ */
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+const mouse = {
+  x: -9999,
+  y: -9999
+};
+
 let particles = [];
 
-const img = new Image();
-img.src = IMAGE_SRC;
-img.onload = init;
+const image = new Image();
 
-function init() {
-  const w = img.width;
-  const h = img.height;
-  canvas.width = w;
-  canvas.height = h;
+image.src = IMAGE_SRC;
 
-  const off = document.createElement('canvas');
-  off.width = w;
-  off.height = h;
-  const offCtx = off.getContext('2d');
-  offCtx.drawImage(img, 0, 0, w, h);
-  const data = offCtx.getImageData(0, 0, w, h).data;
+image.onload = function () {
+  createParticles();
+  animate();
+};
+
+
+function createParticles() {
+
+  const width = image.width;
+  const height = image.height;
+
+  canvas.width = width;
+  canvas.height = height;
+
+  const offscreen = document.createElement("canvas");
+
+  offscreen.width = width;
+  offscreen.height = height;
+
+  const offCtx = offscreen.getContext("2d");
+
+  offCtx.drawImage(
+    image,
+    0,
+    0,
+    width,
+    height
+  );
+
+  const imageData =
+    offCtx.getImageData(
+      0,
+      0,
+      width,
+      height
+    ).data;
 
   particles = [];
-  for (let y = 0; y < h; y += GRID) {
-    for (let x = 0; x < w; x += GRID) {
-      const i = (y * w + x) * 4;
-      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
-      if (a < 50) continue; // 투명 영역 스킵
-      const brightness = (r + g + b) / 3 / 255;
+
+  for (
+    let y = 0;
+    y < height;
+    y += GRID
+  ) {
+
+    for (
+      let x = 0;
+      x < width;
+      x += GRID
+    ) {
+
+      const index =
+        (y * width + x) * 4;
+
+      const r = imageData[index];
+      const g = imageData[index + 1];
+      const b = imageData[index + 2];
+
+      const brightness =
+        (r + g + b) / 3;
+
+      /*
+        사진의 밝기를 기준으로
+        흰색~검정 입자를 생성
+      */
+
       particles.push({
-        ox: x, oy: y,
-        x: x, y: y,
-        color: `rgb(${r},${g},${b})`,
+
+        originalX: x,
+        originalY: y,
+
+        x: x,
+        y: y,
+
         brightness: brightness
+
       });
-    }
-  }
-  requestAnimationFrame(loop);
-}
 
-function loop() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  for (const p of particles) {
-    const dx = p.x - mouse.x;
-    const dy = p.y - mouse.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist < RADIUS) {
-      const angle = Math.atan2(dy, dx);
-      const force = (RADIUS - dist) / RADIUS;
-      p.x += Math.cos(angle) * force * STRENGTH;
-      p.y += Math.sin(angle) * force * STRENGTH;
-    } else {
-      p.x += (p.ox - p.x) * RETURN_SPEED;
-      p.y += (p.oy - p.y) * RETURN_SPEED;
     }
 
-    if (MODE === "ascii") {
-      const charIndex = Math.floor(p.brightness * (ASCII_CHARS.length - 1));
-      ctx.fillStyle = p.color;
-      ctx.font = `${GRID}px monospace`;
-      ctx.fillText(ASCII_CHARS[charIndex], p.x, p.y);
-    } else {
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, GRID / 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
-  requestAnimationFrame(loop);
 }
 
-canvas.addEventListener('mousemove', (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const scaleX = canvas.width / rect.width;
-  const scaleY = canvas.height / rect.height;
-  mouse.x = (e.clientX - rect.left) * scaleX;
-  mouse.y = (e.clientY - rect.top) * scaleY;
-});
 
-canvas.addEventListener('mouseleave', () => {
-  mouse.x = -9999;
-  mouse.y = -9999;
-});
+function animate() {
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+  for (const particle of particles) {
+
+    /*
+      마우스와 입자의 거리
+    */
+
+    const dx =
+      particle.x - mouse.x;
+
+    const dy =
+      particle.y - mouse.y;
+
+    const distance =
+      Math.sqrt(
+        dx * dx +
+        dy * dy
+      );
+
+
+    /*
+      마우스 근처라면
+      입자를 밀어냄
+    */
+
+    if (distance < RADIUS) {
+
+      const angle =
+        Math.atan2(dy, dx);
+
+      const force =
+        (RADIUS - distance) /
+        RADIUS;
+
+      particle.x +=
+        Math.cos(angle) *
+        force *
+        STRENGTH;
+
+      particle.y +=
+        Math.sin(angle) *
+        force *
+        STRENGTH;
+
+    }
+
+
+    /*
+      마우스에서 멀어지면
+      원래 사진 위치로 돌아감
+    */
+
+    particle.x +=
+      (particle.originalX - particle.x)
+      * RETURN_SPEED;
+
+    particle.y +=
+      (particle.originalY - particle.y)
+      * RETURN_SPEED;
+
+
+    /*
+      밝기에 따라
+      입자의 투명도를 결정
+    */
+
+    const alpha =
+      1 -
+      particle.brightness / 255;
+
+
+    ctx.fillStyle =
+      `rgba(0,0,0,${0.25 + alpha * 0.75})`;
+
+
+    ctx.beginPath();
+
+    ctx.arc(
+      particle.x,
+      particle.y,
+      PARTICLE_SIZE,
+      0,
+      Math.PI * 2
+    );
+
+    ctx.fill();
+
+  }
+
+  requestAnimationFrame(animate);
+
+}
+
+
+/*
+  MOUSE
+*/
+
+canvas.addEventListener(
+  "mousemove",
+  function(event) {
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    const scaleX =
+      canvas.width / rect.width;
+
+    const scaleY =
+      canvas.height / rect.height;
+
+    mouse.x =
+      (event.clientX - rect.left)
+      * scaleX;
+
+    mouse.y =
+      (event.clientY - rect.top)
+      * scaleY;
+
+  }
+);
+
+
+canvas.addEventListener(
+  "mouseleave",
+  function() {
+
+    mouse.x = -9999;
+    mouse.y = -9999;
+
+  }
+);
+
+
+/*
+  TOUCH
+*/
+
+canvas.addEventListener(
+  "touchmove",
+  function(event) {
+
+    const touch =
+      event.touches[0];
+
+    const rect =
+      canvas.getBoundingClientRect();
+
+    const scaleX =
+      canvas.width / rect.width;
+
+    const scaleY =
+      canvas.height / rect.height;
+
+    mouse.x =
+      (touch.clientX - rect.left)
+      * scaleX;
+
+    mouse.y =
+      (touch.clientY - rect.top)
+      * scaleY;
+
+  },
+  { passive: true }
+);
+
+
+canvas.addEventListener(
+  "touchend",
+  function() {
+
+    mouse.x = -9999;
+    mouse.y = -9999;
+
+  }
+);
+
 </script>
 
 </body>
