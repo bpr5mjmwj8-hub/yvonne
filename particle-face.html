@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Particle Face Effect</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<script>
+// ===== 설정값 =====
+const IMAGE_SRC = "face.jpg";
+const DISPLAY_WIDTH = 500;
+const GRID = 6;
+const RADIUS = 20;          // 마우스 반응 반경 (기존 40 → 20으로 축소)
+const STRENGTH = 1.4;       // 밀려나는 가속도 세기
+const SPRING = 0.06;        // 원위치로 돌아가는 힘 (스프링)
+const FRICTION = 0.85;      // 마찰 (클수록 오래 흔들림, 1에 가까울수록 출렁임)
+const MODE = "ascii";       // "dots" 또는 "ascii"
+const ASCII_CHARS = " .:-=+*#%@";
+const INVERT = false;
+// ===================
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const mouse = { x: -9999, y: -9999 };
+let particles = [];
+let W, H;
+
+const img = new Image();
+img.src = IMAGE_SRC;
+img.onload = init;
+
+function init() {
+  const dpr = window.devicePixelRatio || 1;
+  W = DISPLAY_WIDTH;
+  H = Math.round(DISPLAY_WIDTH * (img.height / img.width));
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  ctx.scale(dpr, dpr);
+
+  const off = document.createElement('canvas');
+  off.width = W;
+  off.height = H;
+  const offCtx = off.getContext('2d');
+  offCtx.drawImage(img, 0, 0, W, H);
+  const data = offCtx.getImageData(0, 0, W, H).data;
+
+  particles = [];
+  for (let y = 0; y < H; y += GRID) {
+    for (let x = 0; x < W; x += GRID) {
+      const i = (y * W + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+      if (a < 50) continue;
+      let brightness = (r + g + b) / 3 / 255;
+      if (INVERT) brightness = 1 - brightness;
+      particles.push({ ox: x, oy: y, x: x, y: y, vx: 0, vy: 0, brightness });
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  for (const p of particles) {
+    const dx = p.x - mouse.x;
+    const dy = p.y - mouse.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) + 0.0001;
+
+    // 마우스 반경 안이면 부드럽게 밀어내는 힘 추가 (경계에서 뚝 끊기지 않게 제곱 감쇠)
+    if (dist < RADIUS) {
+      const falloff = Math.pow(1 - dist / RADIUS, 2);
+      p.vx += (dx / dist) * falloff * STRENGTH;
+      p.vy += (dy / dist) * falloff * STRENGTH;
+    }
+
+    // 원래 자리로 당기는 스프링 힘
+    p.vx += (p.ox - p.x) * SPRING;
+    p.vy += (p.oy - p.y) * SPRING;
+
+    // 마찰(감속)
+    p.vx *= FRICTION;
+    p.vy *= FRICTION;
+
+    p.x += p.vx;
+    p.y += p.vy;
+
+    const alpha = 1 - p.brightness;
+    if (alpha < 0.03) continue;
+
+    if (MODE === "ascii") {
+      const charIndex = Math.floor((1 - p.brightness) * (ASCII_CHARS.length - 1));
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+      ctx.font = `${GRID + 2}px monospace`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(ASCII_CHARS[charIndex], p.x, p.y);
+    } else {
+      ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, GRID / 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = e.clientX - rect.left;
+  mouse.y = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mouseleave', () => {
+  mouse.x = -9999;
+  mouse.y = -9999;
+});
+</script>
+
+</body>
+</html>
